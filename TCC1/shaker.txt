@@ -1,0 +1,20 @@
+Ensaios de Vibração e Choque
+Os testes de vibração e choque são essenciais para avaliar a qualidade mecânica de produtos e equipamentos, garantindo que eles atendam aos requisitos de resistência, durabilidade e resposta dinâmica. Esses ensaios são aplicados em cada eixo principal dos produtos em sua posição normal de uso, de acordo com normas e especificações como NBR, MIL-STD, IEC, ASTM, entre outras.
+
+Tipos de Movimentos Vibratórios Aplicados:
+Senoidal: Com frequência fixa ou varredura de frequência.
+Importância dos Testes:
+Os testes asseguram que os produtos suportem choques e tensões durante sua vida útil, desde a fabricação até o uso final. Eles revelam fraquezas de design que só apareceriam durante o transporte, instalação e uso. Além disso, testes como HALT e HASS combinam vibração com câmaras ambientais para adicionar tensões térmicas.
+
+Perfis de Ensaios de Vibração:
+Muitos perfis de testes são definidos por normas específicas para aplicações e produtos, especialmente nas indústrias aeroespacial e de defesa.
+
+Ensaios Uniaxiais e Multiaxiais:
+Ensaios Uniaxiais: Realizados com excitadores eletrodinâmicos, simulando condições ambientais normais.
+Ensaios Multiaxiais: Utilizam sistemas servo-hidráulicos para simular ambientes reais mais complexos, como terremotos, replicando as condições de carga real.
+Aplicações Industriais:
+Os testes multiaxiais são cruciais na engenharia civil para simular terremotos e na indústria automotiva para replicar condições de carga do mundo real. Para esses testes, sinais de entrada são editados e o potencial de fadiga é calculado.
+
+Sistemas de Vibração Eletrodinâmicos:
+Capazes de realizar vários testes complexos, como senoidais, aleatórios, choques, e replicar dados de condições reais para melhorar a confiabilidade de equipamentos militares, eletrônicos de consumo, componentes automotivos e equipamentos de telecomunicações.
+

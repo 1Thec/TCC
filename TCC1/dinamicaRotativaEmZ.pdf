@@ -1,0 +1,400 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+
+def skws(v):
+    if len(v) != 3:
+        raise ValueError('O vetor de entrada deve ter 3 elementos.')
+
+    S = np.array([
+        [0, -v[2], v[1]],
+        [v[2], 0, -v[0]],
+        [-v[1], v[0], 0]
+    ])
+    return S
+
+
+
+def Rw(phi, theta):
+    return np.array([
+        [1, 0, np.sin(theta)],
+        [0, np.cos(phi), np.sin(phi)*np.cos(theta)],
+        [0, np.sin(phi),  np.cos(phi)*np.cos(theta)]
+    ])
+
+def dRw(phi, theta, dphi, dtheta):
+    return np.array([
+        [1, 0, np.cos(theta)*dtheta],
+        [0, -np.sin(phi)*dphi, dphi*np.cos(phi)*np.cos(theta)-np.sin(phi)*np.sin(theta)*dtheta],
+        [0, np.cos(phi)*dphi,  -dphi*np.sin(phi)*np.cos(theta)-np.cos(phi)*np.sin(theta)*dtheta]
+    ])
+
+
+
+
+
+
+
+def calculate_coordinates(angle, radius):
+    angles_rad = np.radians(angle)
+    x = radius * np.cos(angles_rad)
+    y = radius * np.sin(angles_rad)
+    z = np.zeros(len(x))
+    return np.array([x, y, z])
+
+def rotation_matrices():
+    def rotX(theta):
+        return np.array([[1, 0, 0], [0, np.cos(theta), -np.sin(theta)], [0, np.sin(theta), np.cos(theta)]])
+
+    def rotY(theta):
+        return np.array([[np.cos(theta), 0, np.sin(theta)], [0, 1, 0], [-np.sin(theta), 0, np.cos(theta)]])
+
+    def rotZ(theta):
+        return np.array([[np.cos(theta), -np.sin(theta), 0], [np.sin(theta), np.cos(theta), 0], [0, 0, 1]])
+
+    return rotX, rotY, rotZ
+
+def inverse_kinematics(trans, rotation, B, P):
+    rotX, rotY, rotZ = rotation_matrices()
+    R = np.matmul(np.matmul(rotX(rotation[0]), rotY(rotation[1])), rotZ(rotation[2]))
+
+    home_pos = np.array([0, 0, 0])
+    l = np.repeat(trans[:, np.newaxis], 6, axis=1) + np.repeat(home_pos[:, np.newaxis], 6, axis=1) + np.matmul(R, P) - B
+    lll = np.linalg.norm(l, axis=0)
+    
+    #Calcular as posições das pernas no referencial global da base
+    L = l + B
+    return l, lll, L
+
+def calculate_servo_angles(l, lll, B, gama_B, r_B):
+    lhl = r_B / 3
+    ldl = 1.05948100502
+    pi = np.pi
+    z = np.sqrt(ldl**2 + lhl**2 - (P[0] - B[0])**2 - (P[1] - B[1])**2)
+    beta = np.array([pi - 2 * gama_B, -pi / 4 + gama_B, pi + pi / 2, -pi - pi / 2, pi / 4 - gama_B, -pi + 2 * gama_B])
+
+    angles = np.zeros(6)
+    H = np.zeros((3, 6))
+    A = np.zeros((3, 6))
+
+
+
+    for k in range(6):
+        A[:, k] = np.transpose([lhl * np.cos(angles[k]) * np.cos(beta[k]) + B[0, k], lhl * np.cos(angles[k]) * np.sin(beta[k]) + B[1, k], lhl * np.sin(angles[k])])
+
+    lx, ly, lz = l
+    g = lll**2 - (ldl**2 - lhl**2)
+    e = 2 * lhl * lz
+
+    for k in range(6):
+        fk = 2 * lhl * (np.cos(beta[k]) * lx[k] + np.sin(beta[k]) * ly[k])
+        angles[k] = np.arcsin(g[k] / np.sqrt(e[k]**2 + fk**2)) - np.arctan2(fk, e[k])
+        H[:, k] = np.transpose([lhl * np.cos(angles[k]) * np.cos(beta[k]) + B[0, k], lhl * np.cos(angles[k]) * np.sin(beta[k]) + B[1, k], lhl * np.sin(angles[k])])
+
+    return angles, H, A
+
+# Main script
+gama_B = 15
+pis_B = [gama_B, 120 - gama_B, 120 + gama_B, -120 - gama_B, -120 + gama_B, -gama_B]
+r_B = 0.6
+B = calculate_coordinates(pis_B, r_B)
+print("Coordenadas dos pontos Bi na base:", B)
+
+gama_P = 45
+pis_P = [gama_P, 120 - gama_P, 120 + gama_P, -120 - gama_P, -120 + gama_P, -gama_P]
+r_P = 0.25
+P = calculate_coordinates(pis_P, r_P)
+print("Coordenadas dos pontos Pi na plataforma:", P)
+
+trans = np.array([0, 0, 1])
+rotation = np.array([0, 0, 0])
+l, lll, L = inverse_kinematics(trans, rotation, B, P)
+print('Leg lengths to command in order to achieve desired position of plate: \n', lll)
+
+angles, H, A = calculate_servo_angles(l, lll, B, gama_B * np.pi / 180, r_B)
+print('angles: ', angles * 180 / np.pi)
+
+
+
+ 
+# Calculando o vetor BA
+BA = H - B
+AP = P - H
+# Calculando o vetor BH
+BH = A - B
+
+# Calculando o produto vetorial BF = BA x BH
+BF = np.cross(BH.T, BA.T).T
+
+# Calculando o vetor unitário s
+BF_magnitude = np.linalg.norm(BF, axis=0)
+s = BF / BF_magnitude
+
+# Imprimindo os resultados
+#print("Coordenadas de A (H com alpha = 0):")
+#print(A)
+
+#print("\nVetor BA:")
+#print(H)
+
+#print("\nVetor BH:")
+#print(BH)
+
+#print("\nProduto Vetorial BF = BA x BH:")
+#print(BF.T)
+
+#print("\nVetor Unitário s:")
+#print(L.T)
+
+
+
+
+e1 = 0.5
+e2 = 0.5
+m1 = np.array([0.1] * 6)
+m2 = np.array([0.1] * 6)
+I1ii = np.array([[[0.00625, 0, 0], [0, 0.00625, 0], [0, 0, 0]]] * 6).transpose((1, 2, 0))
+I2ii = np.array([[[0.00625, 0, 0], [0, 0.00625, 0], [0, 0, 0]]] * 6).transpose((1, 2, 0))
+Ixx=0.00625*2
+
+
+mp = 30
+Ipb = np.array([
+    [0.7813, 0, 0],
+    [0, 0.7813, 0],
+    [0, 0, 1.562]
+])
+
+
+
+
+
+
+
+M1 = np.zeros((6,3,3))
+C1 = np.zeros((6,3,3))
+G1 = np.zeros((6,3))
+
+
+M2 = np.zeros((6,3,3))
+C2 = np.zeros((6,3,3))
+G2= np.zeros((6,3))
+
+times = np.linspace(0, 10, 500)
+
+# Amplitudes dos atuadores
+amplitudes = np.zeros((6, len(times)))
+# Calculando amplitudes ao longo do tempo
+for k, t in enumerate(times):
+    zz = 0.3 * np.sin(3 * t)
+    dzz_dt = 0.3 * 3 * np.cos(3 * t)
+    ddzz_dt = -0.3 * 3**2 * np.sin(3 * t)
+
+
+    trans = np.transpose(np.array([0, 0, zz]))  # X, Y, Z
+    dtrans = np.transpose(np.array([0, 0, dzz_dt]))  # X, Y, Z
+    ddtrans = np.transpose(np.array([0, 0, ddzz_dt]))  # X, Y, Z
+
+
+
+
+
+
+    phi =np.zeros_like(t)
+    dphi =np.zeros_like(t)
+    ddphi =np.zeros_like(t)
+
+    theta =np.zeros_like(t)
+    dtheta =np.zeros_like(t)
+    ddtheta =np.zeros_like(t)
+
+    rotation = np.transpose(np.array([phi, theta, 0]))  # X, Y, Z
+    drotation = np.transpose(np.array([dphi, dtheta, 0]))  # X, Y, Z
+    ddrotation = np.transpose(np.array([ddphi, ddtheta, 0]))  # X, Y, Z
+
+    wp = np.matmul(Rw(phi, theta), drotation)
+    alphap = np.matmul(dRw(phi, theta, dphi, dtheta), drotation) + np.matmul(Rw(phi, theta), ddrotation)
+
+
+    x = np.concatenate((trans, rotation))
+    dx = np.concatenate((dtrans, wp))
+    ddx = np.concatenate((ddtrans, alphap))
+
+    R = np.matmul(np.matmul(rotX(rotation[0]), rotY(rotation[1])), rotZ(rotation[2]))
+    # Calculando os valores de cinemática inversa
+    l, lll, L, s = cinemática_inversa(trans, rotation, home_pos, R, P, B)
+    RP = np.matmul(R, P)
+
+
+
+#Inicialização das matrizes Jacobianas
+
+#Inicializa Jacobiana da Plataforma Móvel
+    Ji = np.zeros((6,3,6))
+    dJi = np.zeros((6,3,6))
+
+    Jx = np.zeros((6,1,6))
+    dJx = np.zeros((6,1,6))
+
+    Jq = np.zeros((6,1,6))
+    dJq = np.zeros((6,1,6))
+
+    Jp = np.zeros((6,6))
+
+
+    Ja = np.zeros((6,6,6))
+    Jau = np.zeros((6,3,6))
+    Jk = np.zeros((6,3,6))
+
+
+    Jb = np.zeros((6,6,6))
+    Jbu = np.zeros((6,3,6))
+    Jbd = np.zeros((6,3,6))
+
+
+    dJa = np.zeros((6,6,6))
+    dJau = np.zeros((6,3,6))
+    dJk = np.zeros((6,3,6))
+
+
+    dJb = np.zeros((6,6,6))
+    dJbu = np.zeros((6,3,6))
+    dJbd = np.zeros((6,3,6))
+
+
+
+    M1 = np.zeros((6,3,3))
+    C1 = np.zeros((6,3,3))
+    G1 = np.zeros((6,3))
+
+
+    M2 = np.zeros((6,3,3))
+    C2 = np.zeros((6,3,3))
+    G2 = np.zeros((6,3))
+
+
+    for i in range(6):
+      # Vetor exemplo
+      s_hat = s[:, i]
+      AP_hat = AP[:, i]
+      BA_hat = BA[:, i]
+      cb_hat = cb[:, i]
+      cl_hat = cl[:, i]		
+
+
+      sx = skws(s_hat)
+      APx = skws(AP_hat )
+      BAx = skws(BA_hat )
+      cbx = skws(cb_hat )
+      clx = skws(cl_hat )
+
+
+
+
+
+      Ji[i] = np.hstack((np.eye(3), -skws(RP[:, i])))
+
+      #Matriz Jacobiana da plataforma móvel
+      Jx[i] = np.matmul(AP.T, Ji[i])
+
+      M1 = np.block([
+      [m1[i] * np.eye(3), np.zeros((3, 3))],
+      [np.zeros((3, 3)), I1[i]]
+      ])
+      C1 = np.block([
+      [np.zeros((3, 3)), np.zeros((3, 3))],
+      [np.zeros((3, 3)), skws(w1[i]) @ I1[i]]
+      ])
+      G1 = np.hstack((-m1[i] * np.array([0, 0, -9.807]), np.zeros(3)))
+
+
+
+      M2 = np.block([
+      [m2[i] * np.eye(3), np.zeros((3, 3))],
+      [np.zeros((3, 3)), I2[i]]
+      ])
+      C2 = np.block([
+      [np.zeros((3, 3)), np.zeros((3, 3))],
+      [np.zeros((3, 3)), skws(w2[i]) @ I2[i]]
+      ])
+      G2 = np.hstack((-m2[i] * np.array([0, 0, -9.807]), np.zeros(3)))
+
+
+
+
+
+
+
+
+#Matriz Jacobiana do braço Manivela
+
+
+
+
+
+
+
+
+
+#Matriz Jacobiana da perna superior        
+       
+
+
+
+
+
+
+
+
+    Ip = R @ Ipb @ np.transpose(R)
+
+    for i in range(6):
+    	I1 = R1 @ I1i[i] @ np.transpose(R1)
+    	I2 = R2 @ I2i[i] @ np.transpose(R2)
+
+    sumM = np.zeros((6, 6))
+    sumC = np.zeros((6, 6))
+    sumG = np.zeros(6)
+
+
+    for i in range(6):
+        dJi[i] = np.hstack((np.zeros((3, 3)), -skws(wp) @ skws(RP[:, i]) + skws(RP[:, i]) @ skws(wp)))
+
+        sumM += Ja[i].T @ M1[i] @ Ja[i] +  Jb[i].T @ M2[i] @ Jb[i]
+        sumC += Ja[i].T @ M1[i] @ dJa[i] + Ja[i].T @ C1[i] @ Ja[i] + Jb[i].T @ M2[i] @ dJb[i] + Jb[i].T @ C2[i] @ Jb[i]
+        sumG += Ja[i].T @ G1[i] + Jb[i].T @ G2[i]
+
+
+
+    Mp = np.block([
+          [mp * np.eye(3), np.zeros((3, 3))],
+          [np.zeros((3, 3)), Ip]
+      ])
+    Cp = np.block([
+          [np.zeros((3, 3)), np.zeros((3, 3))],
+          [np.zeros((3, 3)), skws(wp) @ Ip]
+      ])
+    Gp = np.hstack((-mp * np.array([0, 0, -9.807]), np.zeros(3)))
+
+    MX = Mp + sumM
+    CX = Cp + sumC
+    GX = Gp + sumG
+
+    Fext = MX @ ddx + CX @ dx + GX
+
+    # Calcula a inversa da matriz Jacobiana
+    jac_inv = np.linalg.inv(Jp)
+
+    # Calcula a transposta da inversa da matriz Jacobiana
+    jac_inv_T = jac_inv.T
+
+    tau = np.matmul(jac_inv_T, Fext)
+    for j in range(6):
+      #amplitudes[j, k] = lll[j]
+      amplitudes[j, k] = tau[j]
+
+
+
+
+

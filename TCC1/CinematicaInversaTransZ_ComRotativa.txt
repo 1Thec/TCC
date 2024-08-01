@@ -1,0 +1,413 @@
+import numpy as np
+
+# Ângulo inicial e cálculo dos ângulos para a base
+gama_B = 15  # em graus
+pis_B = [
+    gama_B, 120 - gama_B, 120 + gama_B, -120 - gama_B, -120 + gama_B, -gama_B
+]  # em graus
+
+# Convertendo graus para radianos
+pis_B_rad = np.radians(pis_B)  # Convertendo de graus para radianos
+
+# Definindo o raio da base
+r_B = 0.6  # raio da base em metros
+
+# Calculando as coordenadas x e y para os pontos Bi
+Bx = r_B * np.cos(pis_B_rad)  # coordenadas x
+By = r_B * np.sin(pis_B_rad)  # coordenadas y
+Bz = np.full(
+    len(Bx), 0.0
+)  # array de altura constante, se todos os pontos estão elevados em 0.0 m
+# Criando o array Bi que inclui as coordenadas x, y e z (z é 0 pois está no plano XY)
+B = np.array([Bx, By, Bz])  # Agrupando as coordenadas em um array 3D
+
+# Transposição para que cada coluna represente um ponto Bi
+
+print("Coordenadas dos pontos Bi na base:", B)
+
+import numpy as np
+
+# Ângulo inicial e cálculo dos ângulos para a plataforma
+gama_P = 45  # em graus
+pis_P = [
+    gama_P, 120 - gama_P, 120 + gama_P, -120 - gama_P, -120 + gama_P, -gama_P
+]  # em graus
+
+# Convertendo graus para radianos
+pis_P_rad = np.radians(pis_P)  # Convertendo de graus para radianos
+
+# Definindo o raio da plataforma
+r_P = 0.25  # raio da plataforma em metros
+
+# Calculando as coordenadas x e y para os pontos Pi
+Px = r_P * np.cos(pis_P_rad)  # coordenadas x
+Py = r_P * np.sin(pis_P_rad)  # coordenadas y
+
+# Suponha que a altura z da plataforma seja fixa, por exemplo, z = 0.1 metros acima da base
+Pz = np.full(
+    len(Px),
+    0)  # array de altura constante, se todos os pontos estão elevados em 0.1 m
+
+# Criando o array Pi que inclui as coordenadas x, y e z
+P = np.array([Px, Py, Pz])  # Agrupando as coordenadas em um array 3D
+
+# Transposição para que cada coluna represente um ponto Pi
+P
+
+print("Coordenadas dos pontos Pi na plataforma:", P)
+
+import matplotlib.pyplot as plt
+import seaborn
+
+## Definition of the platform home position.
+home_pos = np.array([0, 0, 0])
+
+# Allocate for variables
+l = np.zeros((3, 6))
+lll = np.zeros((6))
+
+
+# ROtation matrices used later
+def rotX(theta):
+    rotx = np.array([[1, 0, 0], [0, np.cos(theta), -np.sin(theta)],
+                     [0, np.sin(theta), np.cos(theta)]])
+    return rotx
+
+
+def rotY(theta):
+    roty = np.array([[np.cos(theta), 0, np.sin(theta)], [0, 1, 0],
+                     [-np.sin(theta), 0, np.cos(theta)]])
+    return roty
+
+
+def rotZ(theta):
+    rotz = np.array([[np.cos(theta), -np.sin(theta), 0],
+                     [np.sin(theta), np.cos(theta), 0], [0, 0, 1]])
+    return rotz
+
+
+# Given input trans, rotation
+zz=1
+trans = np.transpose(np.array([0, 0, zz]))  # X, Y, Z
+rotation = np.transpose(np.array([0, 0, 0]))  # X, Y, Z
+
+# Get rotation matrix of platform. RotZ* RotY * RotX -> matmul
+# R = np.matmul( np.matmul(rotZ(rotation[2]), rotY(rotation[1])), rotX(rotation[0]) )
+R = np.matmul(np.matmul(rotX(rotation[0]), rotY(rotation[1])),
+              rotZ(rotation[2]))
+
+# Get leg length for each leg
+# leg = np.repeat(trans[:, np.newaxis], 6, axis=1) + np.repeat(home_pos[:, np.newaxis], 6, axis=1) + np.matmul(np.transpose(R), P) - B
+l = np.repeat(trans[:, np.newaxis], 6, axis=1) + np.repeat(
+    home_pos[:, np.newaxis], 6, axis=1) + np.matmul(R, P) - B
+lll = np.linalg.norm(l, axis=0)
+
+# Position of leg in global frame
+L = l + B
+
+print(
+    'Leg lengths to command in order to achieve desired position of plate: \n',
+    lll)
+
+gama_B = 15 * np.pi / 180
+
+lhl = r_B / 3
+ldl = 1.05948100502
+z = np.sqrt(ldl**2 + lhl**2 - (P[0] - B[0])**2 - (P[1] - B[1])**2)
+home_pos = np.array([0, 0, z[0]])
+pi = np.pi
+# Beta (Angle)
+# Angle between the plane in which the servo arm moves and the xz-plane of the base CS.
+'''beta = np.array([
+    pi/2 + pi,
+    pi/2,
+    2*pi/3 + pi/2 + pi ,
+    2*pi/3 + pi/2,
+    4*pi/3 + pi/2 + pi ,
+    4*pi/3 + pi/2] )'''
+
+beta = np.array([
+    pi - 2 * gama_B, -pi / 4 + gama_B, pi + pi / 2, -pi - pi / 2,
+    pi / 4 - gama_B, -pi + 2 * gama_B
+])
+
+# Allocate arrays for variables
+angles = np.zeros((6))
+H = np.zeros((3, 6))
+
+# Position of legs, wrt to their individual bases, split for clarity.
+lx = l[0, :]
+ly = l[1, :]
+lz = l[2, :]
+# Calculate auxiliary quatities g, f and e
+g = lll**2 - (ldl**2 - lhl**2)
+
+e = 2 * lhl * lz
+
+# Calculate servo angles for each leg
+for k in range(6):
+    fk = 2 * lhl * (np.cos(beta[k]) * lx[k] + np.sin(beta[k]) * ly[k])
+
+    # The wanted position could be achieved if the solution of this
+    # equation is real for all i
+    angles[k] = np.arcsin(g[k] / np.sqrt(e[k]**2 + fk**2)) - np.arctan2(
+        fk, e[k])
+
+    # Get postion of the point where a spherical joint connects servo arm and rod.
+    H[:, k] = np.transpose([
+        lhl * np.cos(angles[k]) * np.cos(beta[k]) + B[0, k],
+        lhl * np.cos(angles[k]) * np.sin(beta[k]) + B[1, k],
+        lhl * np.sin(angles[k])
+    ])
+
+print('angles: ', angles * 180 / pi)
+
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.animation as animation
+
+# Config para a animação
+fig = plt.figure(figsize=(12, 10))
+
+#Grafico 3D
+ax3d = fig.add_subplot(311, projection='3d')
+
+ax3d.set_xlim3d(-1, 1)
+ax3d.set_ylim3d(-1, 1)
+ax3d.set_zlim3d(0, lll[0])
+
+ax3d.set_xlabel('X')
+ax3d.set_ylabel('Y')
+ax3d.set_zlabel('Z')
+
+#Grafico 2D - Deslocamento
+ax2d = fig.add_subplot(323)
+
+ax2d.set_xlim(0, 10)
+ax2d.set_ylim(0.5, 1.5)
+
+ax2d.set_xlabel('Time (s)')
+ax2d.set_ylabel('Deslocamento (m)')
+
+x_line, = ax2d.plot([], [], lw=2, label='x', color='blue')  # Linha x em azul
+y_line, = ax2d.plot([], [], lw=2, label='y', color='green')  # Linha y em verde
+z_line, = ax2d.plot([], [], lw=2, label='z',
+                    color='red')  # Linha z em vermelho
+ax2d.legend()
+
+#Grafico 2D - Angulos
+ax_angle = fig.add_subplot(324)
+
+ax_angle.set_xlim(0, 10)
+ax_angle.set_ylim(-pi, pi)
+
+ax_angle.set_xlabel('Time (s)')
+ax_angle.set_ylabel('Angulos (rad)')
+
+phi_line, = ax_angle.plot([], [], lw=2, label='Phi',
+                          color='blue')  # Linha Phi em azul
+theta_line, = ax_angle.plot([], [], lw=2, label='Theta',
+                            color='green')  # Linha Theta em verde
+psi_line, = ax_angle.plot([], [], lw=2, label='Psi',
+                          color='red')  # Linha Psi em vermelho
+ax_angle.legend()
+
+#Gráfico 2D - amplitudes dos Atuadores
+ax_amp = fig.add_subplot(325)
+
+ax_amp.set_xlim(0, 10)
+ax_amp.set_ylim(-0.85*180/np.pi, 0.6*180/np.pi)
+
+ax_amp.set_xlabel('Time (s)')
+ax_amp.set_ylabel('Angulo (grau)')
+
+# Ajuste das marcações do eixo y
+yticks_values = np.arange(-0.85 * 180 / np.pi, 0.6 * 180 / np.pi, 10)  # Define as marcações de 10 em 10 graus
+ax_amp.set_yticks(yticks_values)
+
+
+amp_lines = [ax_amp.plot([], [], lw=2, label=f'L{i+1}')[0] for i in range(6)]
+ax_amp.legend()
+
+#dados para os gráficos 2D
+times = np.linspace(0, 10, 500)
+displacements = 1+ 0.3 * np.sin(3 * times)
+#displacements = 1
+phis = np.zeros_like(times)
+thetas = np.zeros_like(times)
+psis = np.zeros_like(times)
+
+# Amplitudes dos atuadores
+amplitudes = np.zeros((6, len(times)))
+
+# Calculando amplitudes ao longo do tempo
+for i, t in enumerate(times):
+    zz =  0.19 * np.sin(3 * t)
+    trans = np.transpose(np.array([0, 0, zz]))  # X, Y, Z
+    l = np.repeat(trans[:, np.newaxis], 6, axis=1) + np.repeat(
+    home_pos[:, np.newaxis], 6, axis=1) + np.matmul(R, P) - B
+    lll = np.linalg.norm(l, axis=0)
+
+    gama_B = 15 * np.pi / 180
+    lhl = r_B / 2
+    ldl = 1.05948100502
+    pi = np.pi
+    beta = np.array([pi - 2 * gama_B, -pi / 4 + gama_B, pi + pi / 2, -pi - pi / 2, pi / 4 - gama_B, -pi + 2 * gama_B])
+
+    # Allocate arrays for variables
+    angles = np.zeros((6))
+    H = np.zeros((3, 6))
+
+    # Position of legs, wrt to their individual bases, split for clarity.
+    lx = l[0, :]
+    ly = l[1, :]
+    lz = l[2, :]
+    # Calculate auxiliary quatities g, f and e
+    g = lll**2 - (ldl**2 - lhl**2)
+
+    e = 2 * lhl * lz
+
+    # Calculate servo angles for each leg
+    for k in range(6):
+        fk = 2 * lhl * (np.cos(beta[k]) * lx[k] + np.sin(beta[k]) * ly[k])
+
+        # The wanted position could be achieved if the solution of this
+        # equation is real for all i
+        angles[k] = np.arcsin(g[k] / np.sqrt(e[k]**2 + fk**2)) - np.arctan2(
+            fk, e[k])
+
+        # Get postion of the point where a spherical joint connects servo arm and rod.
+        H[:, k] = np.transpose([
+            lhl * np.cos(angles[k]) * np.cos(beta[k]) + B[0, k],
+            lhl * np.cos(angles[k]) * np.sin(beta[k]) + B[1, k],
+            lhl * np.sin(angles[k])
+        ])
+        angles[k] = (np.arcsin(g[k] / np.sqrt(e[k]**2 + fk**2)) - np.arctan2(
+            fk, e[k]))*180/np.pi
+
+    for j in range(6):
+        amplitudes[j, i] = angles[j]
+
+
+# Função de atualização para a animação
+
+def update(num, B, H, L, lines, z_line, phi_line, theta_line, psi_line,
+           amp_lines):
+    t = num / 50.0
+    zz =  0.19 * np.sin(3 * t)
+    trans = np.transpose(np.array([0, 0, zz]))  # X, Y, Z
+    l = np.repeat(trans[:, np.newaxis], 6, axis=1) + np.repeat(
+    home_pos[:, np.newaxis], 6, axis=1) + np.matmul(R, P) - B
+    lll = np.linalg.norm(l, axis=0)
+
+
+    gama_B = 15 * np.pi / 180
+    lhl = r_B / 3
+    ldl = 1.05948100502
+    pi = np.pi
+    beta = np.array([pi - 2 * gama_B, -pi / 4 + gama_B, pi + pi / 2, -pi - pi / 2, pi / 4 - gama_B, -pi + 2 * gama_B])
+
+    # Allocate arrays for variables
+    angles = np.zeros((6))
+    H = np.zeros((3, 6))
+
+    # Position of legs, wrt to their individual bases, split for clarity.
+    lx = l[0, :]
+    ly = l[1, :]
+    lz = l[2, :]
+    # Calculate auxiliary quatities g, f and e
+    g = lll**2 - (ldl**2 - lhl**2)
+
+    e = 2 * lhl * lz
+
+    # Calculate servo angles for each leg
+    for k in range(6):
+        fk = 2 * lhl * (np.cos(beta[k]) * lx[k] + np.sin(beta[k]) * ly[k])
+
+        # The wanted position could be achieved if the solution of this
+        # equation is real for all i
+        angles[k] = np.arcsin(g[k] / np.sqrt(e[k]**2 + fk**2)) - np.arctan2(
+            fk, e[k])
+
+        # Get postion of the point where a spherical joint connects servo arm and rod.
+        H[:, k] = np.transpose([
+            lhl * np.cos(angles[k]) * np.cos(beta[k]) + B[0, k],
+            lhl * np.cos(angles[k]) * np.sin(beta[k]) + B[1, k],
+            lhl * np.sin(angles[k])
+        ])
+    # Position of leg in global frame
+    L = l + B
+
+
+
+
+
+
+
+
+
+    L = np.transpose(L)
+    H = np.transpose(H)
+    # Atualiza os pontos da plataforma
+    lines['platform'].set_data(L[:, 0], L[:, 1])
+    lines['platform'].set_3d_properties(L[:, 2])
+
+    for i in range(6):
+        lines['actuators1'][i].set_data([B[0, i], H[i, 0]], [B[1, i], H[i, 1]])
+        lines['actuators1'][i].set_3d_properties([B[2, i], H[i, 2]])
+
+    for i in range(6):
+        lines['actuators2'][i].set_data([H.T[0, i], L[i, 0]], [H.T[1, i], L[i, 1]])
+        lines['actuators2'][i].set_3d_properties([H.T[2, i], L[i, 2]])
+
+    for i in range(6):
+        lines['base'][i].set_data([B[0, i], B[0, (i+1) % 6]], [B[1, i], B[1, (i+1) % 6]])
+        lines['base'][i].set_3d_properties([B[2, i], B[2, (i+1) % 6]])
+
+
+
+    for i in range(6):
+        lines['platform_edges'][i].set_data([L[i, 0], L[(i+1) % 6, 0]], [L[i, 1], L[(i+1) % 6, 1]])
+        lines['platform_edges'][i].set_3d_properties([L[i, 2], L[(i+1) % 6, 2]])
+
+    # Atualiza os gráficos 2D
+    z_line.set_data(times[:num], displacements[:num])
+    #x_line.set_data(times[:num], phis[:num])
+    #y_line.set_data(times[:num], thetas[:num])
+
+    phi_line.set_data(times[:num], phis[:num])
+    theta_line.set_data(times[:num], thetas[:num])
+    psi_line.set_data(times[:num], psis[:num])
+
+    for i in range(6):
+        amp_lines[i].set_data(times[:num], amplitudes[i, :num])
+
+    return [
+        lines['platform']
+    ] + lines['actuators2'] + lines['actuators1'] + lines['base'] + lines['platform_edges'] + [
+        z_line, phi_line, theta_line, psi_line
+    ] + amp_lines
+
+
+# Configuração das linhas para o gráfico 3D
+lines = {
+    'platform': ax3d.plot([], [], [], 'o-')[0],
+    'actuators2': [ax3d.plot([], [], [], 'r-')[0] for _ in range(6)],
+    'actuators1': [ax3d.plot([], [], [], 'r-')[0] for _ in range(6)],
+    'base': [ax3d.plot([], [], [], 'b-')[0] for _ in range(6)],
+    'platform_edges': [ax3d.plot([], [], [], 'b-')[0] for _ in range(6)]
+}
+
+# Criação da animação
+ani = animation.FuncAnimation(fig,
+                              update,
+                              frames=len(times),
+                              fargs=(B, H, L, lines, z_line, phi_line, theta_line,
+                                     psi_line, amp_lines),
+                              interval=20,
+                              blit=True)
+
+plt.show()
